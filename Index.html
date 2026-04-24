@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ویرایشگر مارک‌داون به PDF و Word</title>
+    
+    <!-- Import beautiful Persian fonts from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&family=Amiri:wght@400;700&family=Lalezar&family=Harmattan:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f9f9f9;
+            --border-color: #ccc;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Vazirmatn', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f0f2f5;
+        }
+
+        /* Toolbar styles */
+        .toolbar {
+            background-color: #ffffff;
+            padding: 15px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .toolbar select, .toolbar input {
+            font-family: 'Vazirmatn', sans-serif;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .button-group {
+            margin-right: auto;
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar button {
+            font-family: 'Vazirmatn', sans-serif;
+            padding: 8px 15px;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: 0.2s;
+            font-size: 14px;
+        }
+
+        .btn-pdf { background-color: #dc3545; }
+        .btn-pdf:hover { background-color: #c82333; }
+
+        .btn-word { background-color: #0056b3; }
+        .btn-word:hover { background-color: #004494; }
+
+        /* Main layout container */
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        /* Editor and Preview shared styles */
+        .editor-pane, .preview-pane {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pane-header {
+            padding: 10px 15px;
+            background: #e9ecef;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            border-radius: 8px 8px 0 0;
+            color: #555;
+        }
+
+        textarea {
+            flex: 1;
+            border: none;
+            padding: 20px;
+            resize: none;
+            outline: none;
+            font-family: 'Vazirmatn', monospace;
+            font-size: 15px;
+            line-height: 1.8;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .preview-content {
+            flex: 1;
+            padding: 20px 40px;
+            overflow-y: auto;
+            line-height: 1.9;
+            color: #333;
+            text-align: justify;
+        }
+
+        /* Markdown Elements Styling */
+        .preview-content h1, .preview-content h2, .preview-content h3 { color: #222; }
+        .preview-content img { max-width: 100%; border-radius: 8px; }
+        .preview-content blockquote {
+            border-right: 4px solid #007bff;
+            margin: 0;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            color: #555;
+        }
+
+        /* LTR formatting for code */
+        .preview-content pre, .preview-content code {
+            direction: ltr;
+            text-align: left;
+            background: #2d2d2d;
+            color: #f8f8f2;
+            font-family: Consolas, monospace;
+            border-radius: 5px;
+        }
+
+        .preview-content code { padding: 2px 6px; background: #e0e0e0; color: #d14; }
+        .preview-content pre code { background: transparent; color: inherit; padding: 0; }
+        .preview-content pre { padding: 15px; overflow-x: auto; }
+
+        /* Print Styles for PDF */
+        @media print {
+            body { background: white; }
+            .toolbar, .editor-pane, .pane-header { display: none !important; }
+            .container { padding: 0; display: block; }
+            .preview-pane { box-shadow: none; border-radius: 0; }
+            .preview-content { padding: 0; overflow: visible; height: auto; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <label for="fontFamily">فونت:</label>
+        <select id="fontFamily">
+            <option value="'Vazirmatn', Tahoma, Arial, sans-serif">وزیرمتن (Vazirmatn)</option>
+            <option value="'Amiri', 'Times New Roman', serif">امیری (Amiri - کلاسیک)</option>
+            <option value="'Harmattan', Tahoma, Arial, sans-serif">هارماتان (Harmattan)</option>
+            <option value="'Lalezar', Tahoma, cursive">لاله‌زار (Lalezar - تیتر)</option>
+        </select>
+
+        <label for="fontSize">اندازه متن:</label>
+        <input type="number" id="fontSize" value="16" min="10" max="30">
+
+        <div class="button-group">
+            <button class="btn-pdf" onclick="window.print()">🖨️ ذخیره PDF</button>
+            <button class="btn-word" onclick="exportToWord()">💾 ذخیره Word</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Editor -->
+        <div class="editor-pane">
+            <div class="pane-header">ویرایشگر مارک‌داون</div>
+            <textarea id="markdownInput" placeholder="متن خود را اینجا تایپ کنید..."></textarea>
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-pane">
+            <div class="pane-header">پیش‌نمایش سند</div>
+            <div id="previewOutput" class="preview-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const mdInput = document.getElementById('markdownInput');
+        const previewOutput = document.getElementById('previewOutput');
+        const fontFamilySelect = document.getElementById('fontFamily');
+        const fontSizeInput = document.getElementById('fontSize');
+
+        const defaultText = `# سلام دنیا!
+این برنامه حالا هم از خروجی **PDF** و هم از خروجی **Word** پشتیبانی می‌کند.
+
+## ویژگی‌های جدید:
+- خروجی مستقیم به فایل \`.doc\` (Word)
+- حفظ جهت‌گیری راست‌به‌چپ (RTL) در ورد
+- کدبلاک‌های چپ‌چین برای متون انگلیسی
+
+### نمونه بلوک کد:
+\`\`\`python
+def hello_world():
+    print("Exporting to Word and PDF!")
+\`\`\`
+
+> نکته برای Word: اگر فونت‌های کاستوم (مثل وزیرمتن) روی ویندوز شما نصب نباشند، نرم‌افزار Word به صورت خودکار از فونت‌های جایگزین مثل Tahoma استفاده می‌کند.`;
+
+        marked.setOptions({ breaks: true, gfm: true });
+
+        function renderMarkdown() {
+            previewOutput.innerHTML = marked.parse(mdInput.value);
+        }
+
+        function updateStyles() {
+            previewOutput.style.fontFamily = fontFamilySelect.value;
+            previewOutput.style.fontSize = fontSizeInput.value + 'px';
+        }
+
+        // --- WORD EXPORT FUNCTION ---
+        function exportToWord() {
+            // Get the HTML content from the preview pane
+            const content = previewOutput.innerHTML;
+            
+            // Wrap the content in a Word-compatible HTML shell with Persian RTL settings
+            const preHtml = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+                      xmlns:w="urn:schemas-microsoft-com:office:word" 
+                      xmlns="http://www.w3.org/TR/REC-html40" dir="rtl">
+                <head>
+                    <meta charset="utf-8">
+                    <title>Document</title>
+                    <style>
+                        body {
+                            font-family: ${fontFamilySelect.value};
+                            font-size: ${fontSizeInput.value}px;
+                            direction: rtl;
+                            text-align: right;
+                        }
+                        h1, h2, h3, h4 { color: #222; }
+                        pre, code {
+                            direction: ltr;
+                            text-align: left;
+                            background-color: #f4f4f4;
+                            font-family: Consolas, monospace;
+                            display: block;
+                            padding: 10px;
+                        }
+                        blockquote {
+                            border-right: 4px solid #007bff;
+                            padding-right: 15px;
+                            color: #555;
+                        }
+                    </style>
+                </head>
+                <body>
+            `;
+            const postHtml = "</body></html>";
+            const fullHtml = preHtml + content + postHtml;
+
+            // Add Byte Order Mark (\ufeff) to ensure Word reads UTF-8 correctly
+            const blob = new Blob(['\ufeff', fullHtml], {
+                type: 'application/msword'
+            });
+
+            // Create a temporary link to trigger the download
+            const downloadLink = document.createElement("a");
+            document.body.appendChild(downloadLink);
+            
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = 'Document.doc'; // Saves as .doc
+            downloadLink.click();
+            
+            // Clean up
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(downloadLink.href);
+        }
+
+        // Event Listeners
+        mdInput.addEventListener('input', renderMarkdown);
+        fontFamilySelect.addEventListener('change', updateStyles);
+        fontSizeInput.addEventListener('input', updateStyles);
+
+        // Run on load
+        mdInput.value = defaultText;
+        renderMarkdown();
+        updateStyles();
+    </script>
+</body>
+</html>
